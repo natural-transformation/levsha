@@ -1,0 +1,39 @@
+name: master
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build_and_publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Install Nix (with flake support)
+        uses: cachix/install-nix-action@v20
+        with:
+          extra_nix_config: sandbox = true
+
+      - name: Run Tests
+        run: nix develop --command sbt +test
+
+      - name: Import GPG key
+        id: import_gpg
+        uses: crazy-max/ghaction-import-gpg@v3
+        with:
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          passphrase: ${{ secrets.PGP_PASSPHRASE }}
+
+      - name: Publish Snapshot
+        env:
+          # Central Portal snapshots repository credentials.
+          SONATYPE_CENTRAL_USERNAME: ${{ secrets.SONATYPE_CENTRAL_USERNAME }}
+          SONATYPE_CENTRAL_PASSWORD: ${{ secrets.SONATYPE_CENTRAL_PASSWORD }}
+        run: nix develop --command sbt publishSigned
+
+
