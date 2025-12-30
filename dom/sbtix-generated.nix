@@ -75,7 +75,7 @@ let
     else "";
 in
   sbtix.buildSbtProgram {
-    name = "levsha";
+    name = "dom";
     src = cleanSource ./.;
     repo = repositories;
     sbtOptions = "-Dplugin.version=${pluginVersion}";

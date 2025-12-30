@@ -13,3 +13,5 @@ target/
 .metals
 *metals.sbt
 .bsp
+
+result*

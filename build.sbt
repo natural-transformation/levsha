@@ -9,7 +9,7 @@ val GitHubEmail = "zli@natural-transformation.com"
 
 def releaseVersion: String = sys.env.getOrElse("RELEASE_VERSION", "")
 def isRelease: Boolean     = releaseVersion != ""
-val BaseVersion: String    = "1.4.0"
+val BaseVersion: String    = "1.6.0"
 def publishVersion: String = if (isRelease) releaseVersion else s"$BaseVersion-SNAPSHOT"
 
 // Keep build-wide `version` in sync with the version we actually publish.

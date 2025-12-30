@@ -31,6 +31,11 @@
         # Get the sbtix CLI tool from the flake for devShell (handy for generating repo locks later).
         sbtixCli = inputs'.sbtix.packages.sbtix;
       in {
+        # `nix build` builds the sbtix-generated package from `default.nix`.
+        packages.default = import ./default.nix {
+          pkgs = newPkgs;
+        };
+
         devShells.default = newPkgs.mkShell {
           nativeBuildInputs = with newPkgs; [
             sbt
