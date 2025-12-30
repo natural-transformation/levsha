@@ -1,0 +1,25 @@
+name: pr
+
+on:
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build_and_test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Install Nix (with flake support)
+        uses: cachix/install-nix-action@v20
+        with:
+          extra_nix_config: sandbox = true
+
+      - name: Run tests
+        run: nix develop --command sbt +test
+
+

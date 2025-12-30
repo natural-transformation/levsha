@@ -7,3 +7,11 @@ target/
 .settings/
 *.iml
 .java-version
+
+.metals
+.bloop
+.metals
+*metals.sbt
+.bsp
+
+result*
