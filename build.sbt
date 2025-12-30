@@ -31,6 +31,17 @@ val OssrhStagingApiHost         = "ossrh-staging-api.central.sonatype.com"
 val OssrhStagingApiServiceLocal = "https://ossrh-staging-api.central.sonatype.com/service/local"
 val OssrhStagingApiRealm        = "OSSRH Staging API Service"
 
+// IMPORTANT:
+// The release CI runs `sbt sonatypeCentralRelease` from the *root* aggregator project.
+// Root does NOT use `publishSettings`, so we must set these keys at the build level.
+//
+// Otherwise sbt-sonatype uses its default credential host and fails with:
+//   "sonatypeCredentialHost key needs to be set to central.sonatype.com ..."
+ThisBuild / sonatypeCredentialHost := CentralPortalHost
+ThisBuild / sonatypeRepository     := OssrhStagingApiServiceLocal
+ThisBuild / sonatypeProfileName    := org
+ThisBuild / sonatypeProjectHosting := Some(GitHubHosting(GitHubOwner, GitHubRepo, GitHubEmail))
+
 // Publishing credentials (env vars):
 // - SONATYPE_CENTRAL_*: Central Portal snapshots repository (central.sonatype.com)
 // - SONATYPE_STAGING_*: OSSRH Staging API Service for releases (ossrh-staging-api.central.sonatype.com)
