@@ -34,6 +34,7 @@ jobs:
           # Central Portal snapshots repository credentials.
           SONATYPE_CENTRAL_USERNAME: ${{ secrets.SONATYPE_CENTRAL_USERNAME }}
           SONATYPE_CENTRAL_PASSWORD: ${{ secrets.SONATYPE_CENTRAL_PASSWORD }}
-        run: nix develop --command sbt publishSigned
+        # cross-publishes (core/events/dom). Use `+` so Scala 2.13 artifacts exist
+        run: nix develop --command sbt +publishSigned
 
 
