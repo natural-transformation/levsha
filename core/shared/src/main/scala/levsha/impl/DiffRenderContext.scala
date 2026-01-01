@@ -235,6 +235,16 @@ final class DiffRenderContext[-M](mc: MiscCallback[M], initialBufferSize: Int, s
 
   def diff(performer: FastChangesPerformer): Unit = {
 
+    // `diff` mutates IdBuilder while traversing the tree.
+    //
+    // In some edge cases (eg when one side hits OpEnd at the root) we can end up calling
+    // `decLevel()` while already at the root level, which underflows the IdBuilder and
+    // breaks the next render cycle (eg `openNode()` will throw IndexOutOfBoundsException).
+    //
+    // Keep this helper local to `diff` to avoid changing the rest of the render pipeline.
+    def decLevelSafely(): Unit =
+      if (idb.hasParent) idb.decLevel()
+
     while (lhs.hasRemaining()) {
       val opA = getOp(lhs)
       val opB = getOp(rhs)
@@ -310,16 +320,20 @@ final class DiffRenderContext[-M](mc: MiscCallback[M], initialBufferSize: Int, s
       } else if ((opA == OpClose || opA == OpEnd) && opB != OpClose && opB != OpEnd) {
         unOp(rhs)
         deleteLoop(rhs, performer)
-        idb.decLevel()
+        decLevelSafely()
       } else if (opA != OpClose && opA != OpEnd && (opB == OpClose || opB == OpEnd)) {
         unOp(lhs)
         createLoop(lhs, performer)
-        idb.decLevel()
+        decLevelSafely()
       }
     }
 
     lhs.rewind()
     rhs.rewind()
+
+    // Make `DiffRenderContext` safe to reuse after diff.
+    // (Rendering expects IdBuilder to start from a clean state.)
+    idb.reset()
   }
 
   def currentId: Id = idb.mkId

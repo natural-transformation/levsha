@@ -170,6 +170,86 @@ expected: List(setAttr(List(1, 1),class,война,http://www.w3.org/1999/xhtml)
         )
       }
     }
+
+    "should not corrupt internal IdBuilder when diffing against an empty rhs buffer" - {
+      // Regression test:
+      //
+      // `DiffRenderContext.diff` mutates its internal IdBuilder while traversing the document.
+      // When the rhs buffer is empty (OpEnd at the root), diff must not underflow the IdBuilder
+      // (level 0), otherwise the next render cycle will crash in `openNode()` with:
+      //   java.lang.IndexOutOfBoundsException at levsha.IdBuilder.incId(...)
+      //
+
+      val renderContext = DiffRenderContext[Nothing]()
+
+      // 1) Render a document into lhs.
+      val first = div(span("first"))
+      first(renderContext)
+      renderContext.finalizeDocument()
+
+      // 2) Diff against an empty rhs (initial state).
+      renderContext.diff(DummyChangesPerformer)
+
+      // 3) Next render cycle: swap buffers and render again.
+      // If `diff` corrupted the internal IdBuilder, this call throws.
+      renderContext.swap()
+
+      val second = div(span("second"))
+      second(renderContext)
+    }
+
+    "should produce the same changes when diff is called twice on the same buffers" - {
+      // `DiffRenderContext` is expected to be reusable across many diff cycles.
+      // If `diff` leaves its internal IdBuilder in a non-reset state, repeated diff calls can drift ids.
+
+      val original = div(span("a"), span("b"))
+      val updated  = div(span("a"), div("x"))
+
+      val renderContext = DiffRenderContext[Nothing]()
+      original(renderContext)
+      renderContext.finalizeDocument()
+      renderContext.swap()
+      updated(renderContext)
+      renderContext.finalizeDocument()
+
+      val p1 = new DiffTestChangesPerformer()
+      renderContext.diff(p1)
+
+      val p2 = new DiffTestChangesPerformer()
+      renderContext.diff(p2)
+
+      assert(p2.result == p1.result)
+    }
+
+    "should support repeated swap/diff cycles without drifting ids" - {
+      // This mirrors the usage pattern in `DiffRenderContextBenchmark`:
+      // swap() -> diff() -> swap(), repeated many times on the same instance.
+
+      val a = div(span("A"))
+      val b = div(span("B"))
+
+      val renderContext = DiffRenderContext[Nothing]()
+      a(renderContext)
+      renderContext.finalizeDocument()
+      renderContext.swap()
+      b(renderContext)
+      renderContext.finalizeDocument()
+
+      def diffOnce(): Seq[Change] = {
+        val p = new DiffTestChangesPerformer()
+        renderContext.swap()
+        renderContext.diff(p)
+        renderContext.swap()
+        p.result
+      }
+
+      val first  = diffOnce()
+      val second = diffOnce()
+      val third  = diffOnce()
+
+      assert(second == first)
+      assert(third == first)
+    }
   }
 
   // -----------------------
