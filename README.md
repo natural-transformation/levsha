@@ -147,6 +147,85 @@ val todos = Seq(
 
 renderTodos(todos)
 ```
+
+## Design
+
+Levsha is a small core engine for building and diffing HTML-like trees in Scala. The key idea is: **a template is a function that writes rendering operations into a render context**. Depending on the render context implementation, those operations become either:
+
+- an **HTML string** (static rendering), or
+- a compact **byte-buffer encoded tree** that can be **diffed** to infer changes (virtual-DOM-like).
+
+### Modules
+
+- **`levsha-core`**: DSL + optimizer + render contexts (including `DiffRenderContext`)
+- **`levsha-events`**: shared event/id model used by integrations
+- **`levsha-dom`**: Scala.js DOM backend that applies diffs to the browser DOM
+
+```mermaid
+flowchart LR
+  Core[levsha-core<br/>DSL + optimizer + DiffRenderContext] --> Dom[levsha-dom<br/>apply changes to browser DOM]
+  Events[levsha-events<br/>ids + event model] --> Dom
+  Core --> Events
+```
+
+### The render pipeline
+
+At runtime, a Levsha template is a `Document[M]` (usually created via the DSL as `Node[M]`, `Attr[M]`, `Style[M]`). Applying a document means calling methods on a `RenderContext`:
+
+- `openNode(XmlNs, tag)`
+- `setAttr(XmlNs, name, value)`
+- `setStyle(name, value)`
+- `addTextNode(text)`
+- `closeNode(tag)`
+- `addMisc(value)` (integration side-channel)
+
+```mermaid
+flowchart TD
+  State["Application state"] --> Doc["Document[M]<br/>(Levsha template)"]
+  Doc --> RC["RenderContext"]
+  RC -->|text.renderHtml| Html["HTML string"]
+  RC -->|DiffRenderContext| Buf["ByteBuffers<br/>lhs/rhs"]
+  Buf --> Diff["diff(lhs,rhs)"]
+  Diff --> Perf["ChangesPerformer"]
+  Perf --> Backend["DOM backend / integration"]
+```
+
+### `DiffRenderContext` lifecycle (and why `finalizeDocument()` matters)
+
+`DiffRenderContext` keeps **two internal buffers**:
+
+- **lhs**: the most recently rendered document (current)
+- **rhs**: the previous document (baseline)
+
+Diffing is a lifecycle. The important steps are:
+
+1. **Render** by applying a `Document` to the render context (writes ops into **lhs**)
+2. Call **`finalizeDocument()`** (flip lhs for reading + reset traversal state)
+3. Call **`diff(performer)`** (read lhs/rhs and call the performer with inferred changes)
+4. Call **`swap()`** to make the current buffer become the next baseline
+
+```mermaid
+sequenceDiagram
+  participant Doc as Document
+  participant RC as DiffRenderContext
+  participant Perf as ChangesPerformer
+
+  Doc->>RC: render into lhs<br/>(openNode/setAttr/addText/closeNode)
+  RC->>RC: finalizeDocument()
+  RC->>Perf: diff(performer)
+  RC->>RC: swap()
+```
+
+**Design note:** `DiffRenderContext` is intentionally **stateful**. You typically keep one instance per render-loop (single-threaded) and reuse it across updates.
+
+### `addMisc` as an integration hook
+
+`addMisc(value)` attaches an out-of-band payload to the **current element id**. Integrations (eg frameworks built on Levsha) use it to collect things like:
+
+- event handlers (keyed by element id + event type)
+- element ids for imperative access
+- component markers / other metadata
+
 ## Memory allocation model explanation
 
 As noted below Levsha does not make _additional_
